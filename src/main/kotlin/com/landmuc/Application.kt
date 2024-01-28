@@ -13,6 +13,8 @@ fun main() {
         .start(wait = true)
 }
 
+val server = DrawingServer()
+
 fun Application.module() {
     configureSessions()
     intercept(ApplicationCallPipeline.Features) {
@@ -21,8 +23,8 @@ fun Application.module() {
             call.sessions.set(DrawingSession(clientId, generateNonce()))
         }
     }
-    configureSerialization()
     configureSockets()
-    configureMonitoring()
     configureRouting()
+    configureSerialization()
+    configureMonitoring()
 }
