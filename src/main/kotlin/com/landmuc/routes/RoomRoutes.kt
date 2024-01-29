@@ -3,6 +3,7 @@ package com.landmuc.routes
 import com.landmuc.data.Room
 import com.landmuc.data.models.BasicApiResponse
 import com.landmuc.data.models.CreateRoomRequest
+import com.landmuc.data.models.RoomResponse
 import com.landmuc.server
 import com.landmuc.util.Constants.MAX_ROOM_SIZE
 import com.landmuc.util.Constants.MIN_ROOM_SIZE
@@ -52,6 +53,31 @@ fun Route.createRoomRoute() {
                 HttpStatusCode.OK,
                 BasicApiResponse(true)
             )
+        }
+    }
+}
+
+fun Route.getRoomsRoute() {
+    route("/api/getRooms") {
+        get {
+            val searchQuery = call.parameters["searchQuery"]
+            if (searchQuery == null) {
+                call.respond(HttpStatusCode.BadRequest)
+                return@get
+            }
+            val roomsResult = server.rooms.filterKeys {
+                it.contains(searchQuery, ignoreCase = true)
+            }
+            val roomResponses = roomsResult.values.map { room ->
+                RoomResponse(
+                    room.name,
+                    room.maxPlayers,
+                    room.players.size)
+            }.sortedBy { it.name }
+
+            call.respond(
+                HttpStatusCode.OK,
+                roomResponses)
         }
     }
 }
