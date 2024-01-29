@@ -8,7 +8,6 @@ class Room(
     val maxPlayers: Int,
     var players: List<Player> = listOf()
 ) {
-
     suspend fun broadcast(message: String) {
         players.forEach {player ->
             if (player.socket.isActive) {
@@ -23,5 +22,10 @@ class Room(
                 player.socket.send(Frame.Text(message))
             }
         }
+    }
+
+    fun containsPlayer(username: String): Boolean {
+        return players.find { player ->
+            player.username == username } != null
     }
 }
