@@ -1,5 +1,6 @@
 package com.landmuc
 
+import com.google.gson.Gson
 import com.landmuc.plugins.*
 import com.landmuc.session.DrawingSession
 import io.ktor.application.*
@@ -14,6 +15,7 @@ fun main() {
 }
 
 val server = DrawingServer()
+val gson = Gson()
 
 fun Application.module() {
     configureSessions()
