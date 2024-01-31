@@ -1,17 +1,36 @@
 package com.landmuc.routes
 
 import com.google.gson.JsonParser
+import com.landmuc.data.Room
 import com.landmuc.data.models.BaseModel
 import com.landmuc.data.models.ChatMessage
+import com.landmuc.data.models.DrawData
 import com.landmuc.gson
+import com.landmuc.server
 import com.landmuc.session.DrawingSession
 import com.landmuc.util.Constants.TYPE_CHAT_MESSAGE
+import com.landmuc.util.Constants.TYPE_DRAW_DATA
 import io.ktor.http.cio.websocket.*
 import io.ktor.routing.*
 import io.ktor.sessions.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.channels.consumeEach
 
+fun Route.gameWebSocketRoute() {
+    route("/ws/draw") {
+        standardWebSocket { socket, clientId, message, payload ->
+            when(payload) {
+                is DrawData -> {
+                    val room = server.rooms[payload.roomName] ?:return@standardWebSocket
+                    if (room.phase == Room.Phase.GAME_RUNNING) {
+                        room.broadcastToAllExcept(message, clientId)
+                    }
+                }
+                is ChatMessage -> {}
+            }
+        }
+    }
+}
 fun Route.standardWebSocket(
     // Frame is a single piece of data that is sent or received using websockets
     handleFrame: suspend (
@@ -20,7 +39,7 @@ fun Route.standardWebSocket(
         // message -> unparsed json data
         message: String,
         // payLoad -> parsed json data
-        payLoad: BaseModel
+        payload: BaseModel
         ) -> Unit
 ) {
     webSocket {
@@ -39,6 +58,7 @@ fun Route.standardWebSocket(
                     val jsonObject = JsonParser.parseString(message).asJsonObject
                     val type = when(jsonObject.get("type").asString) {
                         TYPE_CHAT_MESSAGE -> ChatMessage::class.java
+                        TYPE_DRAW_DATA -> DrawData::class.java
                         else -> BaseModel::class.java
                     }
                     // convert json string to one of our data classes
