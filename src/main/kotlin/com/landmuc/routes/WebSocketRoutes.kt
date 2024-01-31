@@ -1,15 +1,16 @@
 package com.landmuc.routes
 
 import com.google.gson.JsonParser
+import com.landmuc.data.Player
 import com.landmuc.data.Room
-import com.landmuc.data.models.BaseModel
-import com.landmuc.data.models.ChatMessage
-import com.landmuc.data.models.DrawData
+import com.landmuc.data.models.*
 import com.landmuc.gson
 import com.landmuc.server
 import com.landmuc.session.DrawingSession
+import com.landmuc.util.Constants.TYPE_ANNOUNCEMENT
 import com.landmuc.util.Constants.TYPE_CHAT_MESSAGE
 import com.landmuc.util.Constants.TYPE_DRAW_DATA
+import com.landmuc.util.Constants.TYPE_JOIN_ROOM_HANDSHAKE
 import io.ktor.http.cio.websocket.*
 import io.ktor.routing.*
 import io.ktor.sessions.*
@@ -20,6 +21,28 @@ fun Route.gameWebSocketRoute() {
     route("/ws/draw") {
         standardWebSocket { socket, clientId, message, payload ->
             when(payload) {
+                is JoinRoomHandshake -> {
+                    val room = server.rooms[payload.roomName]
+                    if (room == null) {
+                        val gameError = GameError(GameError.ERROR_ROOM_NOT_FOUND)
+                        socket.send(Frame.Text(gson.toJson(gameError)))
+                        return@standardWebSocket
+                    }
+                    val player = Player(
+                        username = payload.username,
+                        socket = socket,
+                        clientId = clientId
+                    )
+                    server.playerJoined(player)
+                    if (!room.containsPlayer(player.username)) {
+                        room.addPlayer(
+                            clientId = payload.clientId,
+                            username = payload.username,
+                            socket = socket
+                        )
+                    }
+
+                }
                 is DrawData -> {
                     val room = server.rooms[payload.roomName] ?:return@standardWebSocket
                     if (room.phase == Room.Phase.GAME_RUNNING) {
@@ -59,6 +82,8 @@ fun Route.standardWebSocket(
                     val type = when(jsonObject.get("type").asString) {
                         TYPE_CHAT_MESSAGE -> ChatMessage::class.java
                         TYPE_DRAW_DATA -> DrawData::class.java
+                        TYPE_ANNOUNCEMENT -> Announcement::class.java
+                        TYPE_JOIN_ROOM_HANDSHAKE -> JoinRoomHandshake::class.java
                         else -> BaseModel::class.java
                     }
                     // convert json string to one of our data classes
