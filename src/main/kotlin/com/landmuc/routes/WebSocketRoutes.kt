@@ -9,8 +9,10 @@ import com.landmuc.server
 import com.landmuc.session.DrawingSession
 import com.landmuc.util.Constants.TYPE_ANNOUNCEMENT
 import com.landmuc.util.Constants.TYPE_CHAT_MESSAGE
+import com.landmuc.util.Constants.TYPE_CHOSEN_WORD
 import com.landmuc.util.Constants.TYPE_DRAW_DATA
 import com.landmuc.util.Constants.TYPE_JOIN_ROOM_HANDSHAKE
+import com.landmuc.util.Constants.TYPE_PHASE_CHANGE
 import io.ktor.http.cio.websocket.*
 import io.ktor.routing.*
 import io.ktor.sessions.*
@@ -49,6 +51,10 @@ fun Route.gameWebSocketRoute() {
                         room.broadcastToAllExcept(message, clientId)
                     }
                 }
+                is ChosenWord -> {
+                    val room = server.rooms[payload.roomName] ?: return@standardWebSocket
+                    room.setWordsAndSwitchToGameRunning(payload.chosenWord)
+                }
                 is ChatMessage -> {}
             }
         }
@@ -84,6 +90,8 @@ fun Route.standardWebSocket(
                         TYPE_DRAW_DATA -> DrawData::class.java
                         TYPE_ANNOUNCEMENT -> Announcement::class.java
                         TYPE_JOIN_ROOM_HANDSHAKE -> JoinRoomHandshake::class.java
+                        TYPE_PHASE_CHANGE -> PhaseChange::class.java
+                        TYPE_CHOSEN_WORD -> ChosenWord::class.java
                         else -> BaseModel::class.java
                     }
                     // convert json string to one of our data classes
