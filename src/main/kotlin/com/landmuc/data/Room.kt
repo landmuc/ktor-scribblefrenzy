@@ -1,9 +1,10 @@
 package com.landmuc.data
 
-import com.landmuc.data.models.Announcement
-import com.landmuc.data.models.ChosenWord
-import com.landmuc.data.models.PhaseChange
+import com.landmuc.data.models.*
 import com.landmuc.gson
+import com.landmuc.util.getRandomWords
+import com.landmuc.util.transformToUnderscore
+import com.landmuc.util.words
 import io.ktor.http.cio.websocket.*
 import kotlinx.coroutines.*
 
@@ -16,6 +17,8 @@ class Room(
     private var drawingPlayer: Player? = null
     private var winningPlayers = listOf<String>()
     private var word: String? = null
+    private var curWords: List<String>? = null
+    private var drawingPlayerIndex = 0
 
     private var phaseChangedListener: ((Phase) -> Unit)? = null
     var phase = Phase.WAITING_FOR_PLAYERS
@@ -156,9 +159,42 @@ class Room(
         }
     }
 
-    private fun newRound() {}
+    private fun newRound() {
+        curWords = getRandomWords(3)
+        val newWords = NewWords(curWords!!)
+        nextDrawingPlayer()
+        GlobalScope.launch {
+            drawingPlayer?.socket?.send(Frame.Text(gson.toJson(newWords)))
+            timeAndNotify(DELAY_NEW_ROUND_TO_GAME_RUNNING)
+        }
+    }
 
-    private fun gameRunning() {}
+    private fun gameRunning() {
+        winningPlayers = listOf()
+        val wordToSend = word ?: curWords?.random() ?: words.random()
+        val wordWithUnderscores = wordToSend.transformToUnderscore()
+        val drawingUserName = (drawingPlayer ?: players.random()).username
+        val gameStateForDrawingPlayer = GameState(
+            drawingPlayer = drawingUserName,
+            word = wordToSend
+        )
+        val gameStateForGuessingPlayers = GameState(
+            drawingPlayer = drawingUserName,
+            word = wordWithUnderscores
+        )
+        GlobalScope.launch {
+            broadcastToAllExcept(
+                message = gson.toJson(gameStateForGuessingPlayers),
+                clientID = drawingPlayer?.clientId ?: players.random().clientId
+            )
+            drawingPlayer?.socket?.send(Frame.Text(gson.toJson(gameStateForDrawingPlayer)))
+
+            timeAndNotify(DELAY_GAME_RUNNING_TO_SHOW_WORD)
+            // Serverlog
+            println("Drawing phase in room $name started. It'll last ${DELAY_GAME_RUNNING_TO_SHOW_WORD / 1000}s")
+        }
+
+    }
 
     private fun showWord() {
         GlobalScope.launch {
@@ -184,6 +220,20 @@ class Room(
             )
             broadcast(gson.toJson(phaseChange))
         }
+    }
+
+    private fun nextDrawingPlayer() {
+        drawingPlayer?.isDrawing = false
+        if (players.isEmpty()) {
+            return
+        }
+
+        drawingPlayer = if (drawingPlayerIndex <= players.size - 1) {
+            players[drawingPlayerIndex]
+        } else players.last()
+
+        if (drawingPlayerIndex < players.size - 1) drawingPlayerIndex++
+        else drawingPlayerIndex = 0
     }
 
     enum class Phase {

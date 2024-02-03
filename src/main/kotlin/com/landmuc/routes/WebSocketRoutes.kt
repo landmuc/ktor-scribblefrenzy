@@ -11,7 +11,9 @@ import com.landmuc.util.Constants.TYPE_ANNOUNCEMENT
 import com.landmuc.util.Constants.TYPE_CHAT_MESSAGE
 import com.landmuc.util.Constants.TYPE_CHOSEN_WORD
 import com.landmuc.util.Constants.TYPE_DRAW_DATA
+import com.landmuc.util.Constants.TYPE_GAME_STATE
 import com.landmuc.util.Constants.TYPE_JOIN_ROOM_HANDSHAKE
+import com.landmuc.util.Constants.TYPE_NEW_WORDS
 import com.landmuc.util.Constants.TYPE_PHASE_CHANGE
 import io.ktor.http.cio.websocket.*
 import io.ktor.routing.*
@@ -92,6 +94,8 @@ fun Route.standardWebSocket(
                         TYPE_JOIN_ROOM_HANDSHAKE -> JoinRoomHandshake::class.java
                         TYPE_PHASE_CHANGE -> PhaseChange::class.java
                         TYPE_CHOSEN_WORD -> ChosenWord::class.java
+                        TYPE_GAME_STATE -> GameState::class.java
+                        TYPE_NEW_WORDS -> NewWords::class.java
                         else -> BaseModel::class.java
                     }
                     // convert json string to one of our data classes
