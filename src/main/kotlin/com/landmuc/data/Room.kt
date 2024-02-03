@@ -59,7 +59,7 @@ class Room(
             username = username,
             socket = socket
         )
-        // in a multithreaded environment mutable objects should be avoided
+        // in a multi threaded environment mutable objects should be avoided
         players = players + player
 
         if (players.size == 1) {
@@ -78,9 +78,17 @@ class Room(
             timestamp = System.currentTimeMillis(),
             announcementType = Announcement.TYPE_PLAYER_JOINED
         )
+        sendWordToPlayer(player)
+        broadcastPlayerStates()
         broadcast( message = gson.toJson(announcement))
 
         return player
+    }
+
+    fun removePlayer(clientID: String) {
+        GlobalScope.launch {
+            broadcastPlayerStates()
+        }
     }
 
     private fun timeAndNotify(ms: Long) {
@@ -172,6 +180,7 @@ class Room(
         val newWords = NewWords(curWords!!)
         nextDrawingPlayer()
         GlobalScope.launch {
+            broadcastPlayerStates()
             drawingPlayer?.socket?.send(Frame.Text(gson.toJson(newWords)))
             timeAndNotify(DELAY_NEW_ROUND_TO_GAME_RUNNING)
         }
@@ -211,7 +220,7 @@ class Room(
                     drawingPlayer.score -= PENALTY_NOBODY_GUESSED_IT
                 }
             }
-
+            broadcastPlayerStates()
             word?.let {
                 val chosenWord = ChosenWord(
                     chosenWord = it,
@@ -252,6 +261,7 @@ class Room(
             drawingPlayer?.let { drawingPlayer ->
                 drawingPlayer.score += GUESS_SCORE_FOR_DRAWING_PLAYER / players.size
             }
+            broadcastPlayerStates()
 
             val announcement = Announcement(
                 message = "${message.from} has guessed it!",
@@ -270,6 +280,52 @@ class Room(
             }
         }
         return false
+    }
+
+    private suspend fun broadcastPlayerStates() {
+        val playersList = players.sortedByDescending {player ->
+            player.score
+        }.map { player ->
+            PlayerData(
+                username = player.username,
+                isDrawing = player.isDrawing,
+                score = player.score,
+                rank = player.rank
+            )
+        }
+        playersList.forEachIndexed { index, playerData ->
+            playerData.rank = index + 1
+        }
+        broadcast(gson.toJson(PlayersList(playersList)))
+    }
+
+    private suspend fun sendWordToPlayer(player: Player) {
+        val delay = when(phase) {
+            Phase.WAITING_FOR_START -> DELAY_WAITING_FOR_START_TO_NEW_ROUND
+            Phase.NEW_ROUND -> DELAY_NEW_ROUND_TO_GAME_RUNNING
+            Phase.GAME_RUNNING -> DELAY_GAME_RUNNING_TO_SHOW_WORD
+            Phase.SHOW_WORD -> DELAY_SHOW_WORD_TO_NEW_ROUND
+            else -> 0L
+        }
+        val phaseChange = PhaseChange(
+            phase = phase,
+            time = delay,
+            drawingPlayer = drawingPlayer?.username
+        )
+        word?.let { curWord ->
+            drawingPlayer?.let {drawingPlayer ->
+                val gameState = GameState(
+                    drawingPlayer = drawingPlayer.username,
+                    word = if (player.isDrawing || phase == Phase.SHOW_WORD) {
+                        curWord
+                    } else {
+                        curWord.transformToUnderscore()
+                    }
+                )
+                player.socket.send(Frame.Text(gson.toJson(gameState)))
+            }
+        }
+        player.socket.send(Frame.Text(gson.toJson(phase)))
     }
 
     private fun nextDrawingPlayer() {
