@@ -15,6 +15,7 @@ import com.landmuc.util.Constants.TYPE_GAME_STATE
 import com.landmuc.util.Constants.TYPE_JOIN_ROOM_HANDSHAKE
 import com.landmuc.util.Constants.TYPE_NEW_WORDS
 import com.landmuc.util.Constants.TYPE_PHASE_CHANGE
+import com.landmuc.util.Constants.TYPE_PING
 import io.ktor.http.cio.websocket.*
 import io.ktor.routing.*
 import io.ktor.sessions.*
@@ -44,6 +45,10 @@ fun Route.gameWebSocketRoute() {
                             username = payload.username,
                             socket = socket
                         )
+                    } else {
+                        val playerInRoom = room.players.find { it.clientId == clientId }
+                        playerInRoom?.socket = socket
+                        playerInRoom?.startPinging()
                     }
 
                 }
@@ -62,6 +67,10 @@ fun Route.gameWebSocketRoute() {
                     if (!room.checkWordAndNotifyPlayers(payload)) {
                         room.broadcast(message)
                     }
+                }
+                // these are the pongs
+                is Ping -> {
+                    server.players[clientId]?.receivedPong()
                 }
             }
         }
@@ -101,6 +110,7 @@ fun Route.standardWebSocket(
                         TYPE_CHOSEN_WORD -> ChosenWord::class.java
                         TYPE_GAME_STATE -> GameState::class.java
                         TYPE_NEW_WORDS -> NewWords::class.java
+                        TYPE_PING -> Ping::class.java
                         else -> BaseModel::class.java
                     }
                     // convert json string to one of our data classes
