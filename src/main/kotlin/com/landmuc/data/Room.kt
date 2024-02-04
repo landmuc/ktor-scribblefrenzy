@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentHashMap
 class Room(
     val name: String,
     val maxPlayers: Int,
+    // in a multi threaded environment mutable objects should be avoided
     var players: List<Player> = listOf()
 ) {
     private var timerJob: Job? = null
@@ -61,13 +62,34 @@ class Room(
         username: String,
         socket: WebSocketSession
         ): Player {
-        val player = Player(
-            clientId = clientId,
-            username = username,
-            socket = socket
-        )
-        // in a multi threaded environment mutable objects should be avoided
-        players = players + player
+        var indexToAdd = players.size - 1
+        val player = if (leftPlayers.containsKey(clientId)) {
+                val leftPlayer = leftPlayers[clientId]
+                leftPlayer?.first?.let { player ->
+                    player.socket = socket
+                    player.isDrawing= drawingPlayer?.clientId == clientId
+                    indexToAdd = leftPlayer.second
+
+                    playerRemoveJobs[clientId]?.cancel()
+                    playerRemoveJobs.remove(clientId)
+                    leftPlayers.remove(clientId)
+                    player
+                } ?: Player(username, socket, clientId)
+        } else {
+            Player(
+                clientId = clientId,
+                username = username,
+                socket = socket
+            )
+        }
+        indexToAdd = when {
+            players.isEmpty() -> 0
+            indexToAdd >= players.size -> players.size -1
+            else -> indexToAdd
+        }
+        val tempPlayers = players.toMutableList()
+        tempPlayers.add(indexToAdd, player)
+        players = tempPlayers.toList()
 
         if (players.size == 1) {
             phase = Phase.WAITING_FOR_PLAYERS
