@@ -48,6 +48,7 @@ class Room(
     }
 
     init {
+        // gets triggered whenever the phase changes
         setPhaseChangedListener { phase ->
             when(phase) {
                 Phase.WAITING_FOR_PLAYERS -> waitingForPlayers()
@@ -276,6 +277,7 @@ class Room(
     private fun gameRunning() {
         winningPlayers = listOf()
         val wordToSend = word ?: curWords?.random() ?: words.random()
+        word = wordToSend
         val wordWithUnderscores = wordToSend.transformToUnderscore()
         val drawingUserName = (drawingPlayer ?: players.random()).username
         val gameStateForDrawingPlayer = GameState(
@@ -427,6 +429,8 @@ class Room(
 
         if (drawingPlayerIndex < players.size - 1) drawingPlayerIndex++
         else drawingPlayerIndex = 0
+
+        drawingPlayer?.isDrawing = true
     }
 
     private fun kill() {
